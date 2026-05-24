@@ -43,8 +43,11 @@ gameOverText = """
     \\_____/_/    \\_\\_|  |_|______|  \\____/   \\/   |______|_|  \\_\\  \r
 
 """
-data Coordinates = Coord Nat Nat
-data Snake = Snek Nat (List1 Coordinates)
+Coordinates : Type
+Coordinates = (Nat, Nat)
+
+Snake : Type
+Snake = (Nat, (List1 Coordinates))
 
 data Direction =
     Up    |
@@ -52,9 +55,14 @@ data Direction =
     Down  |
     Left
 
+data GameObject =
+    Nothing   |
+    SnakePart |
+    Fruit
+
 data GameState =
     Over |
-    Active Direction Snake
+    Active Direction Snake (List Coordinates)
 
 setRaw : IO ()
 setRaw = system "stty -echo raw" >>= \_ => pure ()
@@ -65,33 +73,22 @@ restore = system "stty echo cooked" >>= \_ => pure ()
 getKey : IO Char
 getKey = getChar
 
---popLast : List a -> List a
---popLast [] = []
---popLast (x :: []) = []
---popLast (x :: xs) = x :: popLast xs
-
 trim : List1 a -> Nat -> List1 a
-trim (x ::: []) _ = (x ::: [])
-trim (x ::: xs) 0 = (x ::: [])
+trim (x ::: []) _     = (x ::: [])
+trim (x ::: xs) 0     = (x ::: [])
 trim (x ::: xs) (S k) = x ::: trim' xs k
 where
     trim' : List a -> Nat -> List a
-    trim' [] _ = []
-    trim' (x :: xs) 0 = []
+    trim' []        _     = []
+    trim' (x :: xs) 0     = []
     trim' (x :: xs) (S k) = x :: trim' xs k
 
-collides : Coordinates -> List1 Coordinates -> Bool
-collides (Coord x1 y1) ((Coord x2 y2) ::: xs) =
-    if x1 == x2 && y1 == y2
+collides : Coordinates -> List Coordinates -> Bool
+collides _ [] = False
+collides coords1 (coords2 :: xs) =
+    if coords1 == coords2
        then True
-       else collides' (Coord x1 y1) xs
-where
-    collides' : Coordinates -> List Coordinates -> Bool
-    collides' _ [] = False
-    collides' (Coord x1 y1) ((Coord x2 y2) :: xs) =
-        if x1 == x2 && y1 == y2
-           then True
-           else collides' (Coord x1 y1) xs
+       else collides coords1 xs
 
 inputThread : (quitRef: IORef Bool) -> (keyboardRef: IORef (Maybe Char)) -> IO ()
 inputThread quitRef keyboardRef = do
@@ -103,62 +100,60 @@ inputThread quitRef keyboardRef = do
             writeIORef keyboardRef (Just c)
             inputThread quitRef keyboardRef
 
-snakeIn : (snake: Snake) -> (x: Nat) -> (y: Nat) -> Bool
-snakeIn (Snek len ((Coord i j) ::: xs)) x y =
-    if i == x && j == y
-        then True
-        else snakeIn' xs x y
-where
-    snakeIn' : (List Coordinates) -> (x: Nat) -> (y: Nat) -> Bool
-    snakeIn' [] _ _ = False
-    snakeIn' ((Coord i j) :: xs) x y =
-        if i == x && j == y
-            then True
-            else snakeIn' xs x y
+whatIn : Coordinates -> (snake: Snake) -> (fruits: List Coordinates) -> String
+whatIn coords (len, spine) fruits =
+    case elem coords spine of
+        True  => "██"
+        False => case elem coords fruits of
+            True => "()"
+            False => "░░"
 
-drawScreen : (i: Nat) -> (j: Nat) -> (snake: Snake) -> IO ()
-drawScreen 0 0 snake = do
-    if snakeIn snake 0 0
-        then putStr "██\n\r"
-        else putStr "░░\n\r"
-drawScreen 0 (S j) snake = do
-    if snakeIn snake 0 (S j)
-        then putStr "██\n\r"
-        else putStr "░░\n\r"
-    drawScreen 10 j snake
-drawScreen (S i) j snake = do
-    if snakeIn snake (S i) j
-        then putStr "██"
-        else putStr "░░"
-    drawScreen i j snake
+
+drawScreen : (i: Nat) -> (j: Nat) -> (snake: Snake) -> (fruits: List Coordinates) -> IO ()
+drawScreen 0 0 snake fruits = do
+    putStr $ whatIn (0    , 0    ) snake fruits ++ "\n\r"
+drawScreen 0 (S j) snake fruits = do
+    putStr $ whatIn (0    , (S j)) snake fruits ++ "\n\r"
+    drawScreen 10 j snake fruits
+drawScreen (S i) j snake fruits = do
+    putStr $ whatIn ((S i), j    ) snake fruits
+    drawScreen i j snake fruits
 
 renderGame : GameState -> IO ()
-renderGame (Active _ snake) = drawScreen 10 10 snake
-renderGame (Over)           = pure ()
+renderGame (Active _ snake fruits) = drawScreen 10 10 snake fruits
+renderGame (Over)                  = pure ()
 
 newCoordinates : Direction -> Coordinates -> Coordinates
-newCoordinates Up    (Coord x     y    ) = Coord x                (mod (y + 1) 11)
-newCoordinates Right (Coord 0     y    ) = Coord 10               y
-newCoordinates Right (Coord (S x) y    ) = Coord (mod x 11)       y
-newCoordinates Down  (Coord x     0    ) = Coord x                10
-newCoordinates Down  (Coord x     (S y)) = Coord x                (mod y 11)
-newCoordinates Left  (Coord x     y    ) = Coord (mod (x + 1) 11) y
+newCoordinates Up    (x    , y    ) = (x               , (mod (y + 1) 11))
+newCoordinates Right (0    , y    ) = (10              , y               )
+newCoordinates Right ((S x), y    ) = ((mod x 11)      , y               )
+newCoordinates Down  (x    , 0    ) = (x               , 10              )
+newCoordinates Down  (x    , (S y)) = (x               , (mod y 11)      )
+newCoordinates Left  (x    , y    ) = ((mod (x + 1) 11), y               )
 
 eatFruit : (fruits: List Coordinates) -> Snake -> (Nat, (List Coordinates))
-eatFruit [] (Snek len _)= (len, [])
-eatFruit ((Coord x1 x2) :: xs) (Snek len (x ::: ys)) = ?eatFruit_rhs_5
+eatFruit fruits (len, (head ::: tail)) = case eatFruit' fruits head of
+    (False, fruits) => (len    , fruits)
+    (True,  fruits) => (len + 1, fruits)
+where
+    eatFruit' : (fruits: List Coordinates) -> (headCoords: Coordinates) -> (Bool, List Coordinates)
+    eatFruit' [] _ = (False, [])
+    eatFruit' (fruitCoords :: xs) headCoords =
+        if fruitCoords == headCoords
+            then (True, xs)
+            else case eatFruit' xs headCoords of
+                (bool, xs) => (bool, fruitCoords :: xs)
 
 updateState : GameState -> GameState
-updateState Over                                         = Over
-updateState (Active direction (Snek len (coords ::: xs))) =
+updateState Over                                            = Over
+updateState (Active direction (len, coords ::: xs) fruits) =
     let newCoords  = newCoordinates direction coords in
-    let (newLen, newFruit) = eatFruit [] (Snek len (newCoords ::: coords :: xs)) in
-    case trim (newCoords ::: coords :: xs) len of
-        [] => Over
-        (head :: trimmedTail) =>
+    let (newLen, newFruits) = eatFruit fruits (len, newCoords ::: coords :: xs) in
+    case trim (newCoords ::: coords :: xs) newLen of
+        (head ::: trimmedTail) =>
             if collides head trimmedTail
                 then Over
-                else Active direction $ Snek len $ head :: trimmedTail
+                else Active direction (newLen, head ::: trimmedTail) newFruits
 
 
 mainLoop : Fuel -> IORef (Maybe Char) -> (gameState: GameState) -> IO ()
@@ -183,25 +178,28 @@ mainLoop (More fuel) ref gameState = do
             putStr MOVE_CURSOR_TO_ZERO
             putStr gameOverText
             usleep 3000000
-        Active direction snake => case key of
+        Active direction snake fruits => case key of
             Just 'q' => putStrLn CLEAR_SCREEN
             Just 'w' => case direction of
-                    Down  => mainLoop fuel ref $ Active direction snake
-                    _     => mainLoop fuel ref $ Active Up        snake
+                    Down  => mainLoop fuel ref $ Active direction snake fruits
+                    _     => mainLoop fuel ref $ Active Up        snake fruits
             Just 'a' => case direction of
-                    Right => mainLoop fuel ref $ Active direction snake
-                    _     => mainLoop fuel ref $ Active Left      snake
+                    Right => mainLoop fuel ref $ Active direction snake fruits
+                    _     => mainLoop fuel ref $ Active Left      snake fruits
             Just 's' => case direction of
-                    Up    => mainLoop fuel ref $ Active direction snake
-                    _     => mainLoop fuel ref $ Active Down      snake
+                    Up    => mainLoop fuel ref $ Active direction snake fruits
+                    _     => mainLoop fuel ref $ Active Down      snake fruits
             Just 'd' => case direction of
-                    Left  => mainLoop fuel ref $ Active direction snake
-                    _     => mainLoop fuel ref $ Active Right     snake
-            _        => mainLoop fuel ref $ Active direction snake
+                    Left  => mainLoop fuel ref $ Active direction snake fruits
+                    _     => mainLoop fuel ref $ Active Right     snake fruits
+            _             => mainLoop fuel ref $ Active direction snake fruits
 
 
 newSnake : Snake
-newSnake = Snek 9 ((Coord 5 5) ::: [])
+newSnake = (3, ((5, 5) ::: []))
+
+newFruits : List Coordinates
+newFruits = [(1, 1), (6, 8), (5, 8)]
 
 main : IO ()
 main = do
@@ -217,7 +215,7 @@ main = do
 
     usleep 3000000
 
-    mainLoop forever keyboardRef $ Active Up newSnake
+    mainLoop forever keyboardRef $ Active Up newSnake newFruits
     writeIORef quitRef True
 
     putStr MOVE_CURSOR_TO_ZERO
@@ -226,4 +224,3 @@ main = do
 
     restore
     putStrLn ""
-
