@@ -10,6 +10,26 @@ import Data.List1
 
 %default covering
 
+Coordinates : Type
+Coordinates = (Nat, Nat)
+
+
+Snake : Type
+Snake = (Nat, (List1 Coordinates))
+
+
+data Direction =
+    Up    |
+    Right |
+    Down  |
+    Left
+
+
+data GameState =
+    Over |
+    Active Direction Snake (List Coordinates)
+
+
 CLEAR_SCREEN            = "\x1B[2J"
 CLEAR_FROM_CURSOT       = "\x1B[K"
 MOVE_CURSOR_TO_HOME     = "\x1B[H"
@@ -17,6 +37,7 @@ MOVE_CURSOR_TO_ZERO     = "\x1B[1;1H"
 RESTORE_CURSOR_POSITION = "\x1B[u"
 SAVE_CURSOR_POSITION    = "\x1B[s"
 UPLINE                  = "\x1B[F"
+
 
 snakeText : String
 snakeText = """
@@ -31,6 +52,7 @@ snakeText = """
 
 """
 
+
 gameOverText : String
 gameOverText = """
 
@@ -43,35 +65,19 @@ gameOverText = """
     \\_____/_/    \\_\\_|  |_|______|  \\____/   \\/   |______|_|  \\_\\  \r
 
 """
-Coordinates : Type
-Coordinates = (Nat, Nat)
 
-Snake : Type
-Snake = (Nat, (List1 Coordinates))
-
-data Direction =
-    Up    |
-    Right |
-    Down  |
-    Left
-
-data GameObject =
-    Nothing   |
-    SnakePart |
-    Fruit
-
-data GameState =
-    Over |
-    Active Direction Snake (List Coordinates)
 
 setRaw : IO ()
 setRaw = system "stty -echo raw" >>= \_ => pure ()
 
+
 restore : IO ()
 restore = system "stty echo cooked" >>= \_ => pure ()
 
+
 getKey : IO Char
 getKey = getChar
+
 
 trim : List1 a -> Nat -> List1 a
 trim (x ::: []) _     = (x ::: [])
@@ -83,12 +89,14 @@ where
     trim' (x :: xs) 0     = []
     trim' (x :: xs) (S k) = x :: trim' xs k
 
+
 collides : Coordinates -> List Coordinates -> Bool
 collides _ [] = False
 collides coords1 (coords2 :: xs) =
     if coords1 == coords2
        then True
        else collides coords1 xs
+
 
 inputThread : (quitRef: IORef Bool) -> (keyboardRef: IORef (Maybe Char)) -> IO ()
 inputThread quitRef keyboardRef = do
@@ -99,6 +107,7 @@ inputThread quitRef keyboardRef = do
             c <- getChar
             writeIORef keyboardRef (Just c)
             inputThread quitRef keyboardRef
+
 
 whatIn : Coordinates -> (snake: Snake) -> (fruits: List Coordinates) -> String
 whatIn coords (len, spine) fruits =
@@ -119,9 +128,11 @@ drawScreen (S i) j snake fruits = do
     putStr $ whatIn ((S i), j    ) snake fruits
     drawScreen i j snake fruits
 
+
 renderGame : GameState -> IO ()
 renderGame (Active _ snake fruits) = drawScreen 10 10 snake fruits
 renderGame (Over)                  = pure ()
+
 
 newCoordinates : Direction -> Coordinates -> Coordinates
 newCoordinates Up    (x    , y    ) = (x               , (mod (y + 1) 11))
@@ -130,6 +141,7 @@ newCoordinates Right ((S x), y    ) = ((mod x 11)      , y               )
 newCoordinates Down  (x    , 0    ) = (x               , 10              )
 newCoordinates Down  (x    , (S y)) = (x               , (mod y 11)      )
 newCoordinates Left  (x    , y    ) = ((mod (x + 1) 11), y               )
+
 
 eatFruit : (fruits: List Coordinates) -> Snake -> (Nat, (List Coordinates))
 eatFruit fruits (len, (head ::: tail)) = case eatFruit' fruits head of
@@ -143,6 +155,7 @@ where
             then (True, xs)
             else case eatFruit' xs headCoords of
                 (bool, xs) => (bool, fruitCoords :: xs)
+
 
 updateState : GameState -> GameState
 updateState Over                                            = Over
@@ -198,8 +211,10 @@ mainLoop (More fuel) ref gameState = do
 newSnake : Snake
 newSnake = (3, ((5, 5) ::: []))
 
+
 newFruits : List Coordinates
 newFruits = [(1, 1), (6, 8), (5, 8)]
+
 
 main : IO ()
 main = do
