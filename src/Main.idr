@@ -55,6 +55,7 @@ data Direction =
 data GameState =
     Active Direction Bool Snake (List Coordinates)
     | Over
+    | Quit
 
 
 CLEAR_SCREEN            = "\x1B[2J"
@@ -183,7 +184,8 @@ drawScreen (FS i) j pattern snake fruits =
 
 renderGame : GameState -> String
 renderGame (Active _  pattern snake fruits) = drawScreen last last pattern snake fruits
-renderGame (Over)                  = gameOverText
+renderGame Over                             = gameOverText
+renderGame Quit                             = ""
 
 
 newCoordinates : Direction -> Coordinates -> Coordinates
@@ -211,6 +213,7 @@ where
 
 updateState : GameState -> GameState
 updateState Over                                                   = Over
+updateState Quit                                                   = Quit
 updateState (Active direction pattern (len, coords ::: xs) fruits) =
     let newCoords  = newCoordinates direction coords in
     let (newLen, newFruits) = eatFruit fruits (len, newCoords ::: coords :: xs) in
@@ -229,8 +232,9 @@ mainLoop (More fuel) keyBuff gameState = do
     let manipulatedState =
         case gameState of
             Over => Over
+            Quit => Quit
             Active direction pattern snake fruits => case key of
-                Just 'q' => Over
+                Just 'q' => Quit
                 Just 'w' => case direction of
                         Down  => Active direction pattern snake fruits
                         _     => Active Up        pattern snake fruits
@@ -250,9 +254,8 @@ mainLoop (More fuel) keyBuff gameState = do
     putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ renderGame updatedState
 
     case updatedState of
-        Over => do
-            putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ gameOverText
-            usleep 3000000
+        Over        => usleep 3000000
+        Quit        => pure ()
         activeState => do
             usleep $ div 1000000 fps
             mainLoop fuel keyBuff activeState
