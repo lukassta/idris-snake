@@ -24,6 +24,9 @@ prim_read : Int -> Buffer -> Int -> PrimIO Int
 prim_fcntl : Int -> Int -> Int -> PrimIO Int
 
 
+fps : Int
+fps = 6
+
 screenSize : Nat
 screenSize = 20
 
@@ -251,8 +254,8 @@ mainLoop (More fuel) keyBuff gameState = do
             putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ gameOverText
             usleep 3000000
         activeState => do
-            usleep 400000
-            mainLoop fuel keyBuff activeState 
+            usleep $ div 1000000 fps
+            mainLoop fuel keyBuff activeState
 
 
 newFruits : List Coordinates
@@ -278,6 +281,5 @@ main = do
 
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
-    putStr "\rYou exited the game\r\n"
 
     restore
