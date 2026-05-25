@@ -166,7 +166,7 @@ drawScreen (S i) j snake fruits =
 
 renderGame : GameState -> String
 renderGame (Active _ snake fruits) = drawScreen 10 10 snake fruits
-renderGame (Over)                  = ""
+renderGame (Over)                  = gameOverText
 
 
 newCoordinates : Direction -> Coordinates -> Coordinates
@@ -207,33 +207,38 @@ updateState (Active direction (len, coords ::: xs) fruits) =
 mainLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
 mainLoop Dry  _ _ = pure ()
 mainLoop (More fuel) keyBuff gameState = do
-    let newGameState = updateState gameState
-
-    putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ renderGame gameState
-
-    usleep 400000
-
     key <- latestKey keyBuff
 
-    case newGameState of
+    let manipulatedState =
+        case gameState of
+            Over => Over
+            Active direction snake fruits => case key of
+                Just 'q' => Over
+                Just 'w' => case direction of
+                        Down  => Active direction snake fruits
+                        _     => Active Up        snake fruits
+                Just 'a' => case direction of
+                        Right => Active direction snake fruits
+                        _     => Active Left      snake fruits
+                Just 's' => case direction of
+                        Up    => Active direction snake fruits
+                        _     => Active Down      snake fruits
+                Just 'd' => case direction of
+                        Left  => Active direction snake fruits
+                        _     => Active Right     snake fruits
+                _             => Active direction snake fruits
+
+    let updatedState = updateState manipulatedState
+
+    putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ renderGame updatedState
+
+    case updatedState of
         Over => do
             putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ gameOverText
             usleep 3000000
-        Active direction snake fruits => case key of
-            Just 'q' => putStrLn CLEAR_SCREEN
-            Just 'w' => case direction of
-                    Down  => mainLoop fuel keyBuff $ Active direction snake fruits
-                    _     => mainLoop fuel keyBuff $ Active Up        snake fruits
-            Just 'a' => case direction of
-                    Right => mainLoop fuel keyBuff $ Active direction snake fruits
-                    _     => mainLoop fuel keyBuff $ Active Left      snake fruits
-            Just 's' => case direction of
-                    Up    => mainLoop fuel keyBuff $ Active direction snake fruits
-                    _     => mainLoop fuel keyBuff $ Active Down      snake fruits
-            Just 'd' => case direction of
-                    Left  => mainLoop fuel keyBuff $ Active direction snake fruits
-                    _     => mainLoop fuel keyBuff $ Active Right     snake fruits
-            _             => mainLoop fuel keyBuff $ Active direction snake fruits
+        activeState => do
+            usleep 400000
+            mainLoop fuel keyBuff activeState 
 
 
 newSnake : Snake
