@@ -4,6 +4,7 @@ import System
 import System.Concurrency
 import System.File
 import Data.IORef
+import Data.Fin
 import Data.Nat
 import Data.List
 import Data.List1
@@ -23,8 +24,14 @@ prim_read : Int -> Buffer -> Int -> PrimIO Int
 prim_fcntl : Int -> Int -> Int -> PrimIO Int
 
 
+screenSize : Nat
+screenSize = 20
+
+Coordinate : Type
+Coordinate = Fin screenSize
+
 Coordinates : Type
-Coordinates = (Nat, Nat)
+Coordinates = (Coordinate, Coordinate)
 
 
 Snake : Type
@@ -32,7 +39,7 @@ Snake = (Nat, (List1 Coordinates))
 
 
 data Direction =
-    Up    
+    Up
     | Right
     | Down
     | Left
@@ -151,31 +158,31 @@ whatIn coords (len, spine) fruits =
             False => "░░"
 
 
-drawScreen : (i: Nat) -> (j: Nat) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+drawScreen : (i: Coordinate) -> (j: Coordinate) -> (snake: Snake) -> (fruits: List Coordinates) -> String
 drawScreen 0 0 snake fruits =
-    whatIn (0    , 0    ) snake fruits
+    whatIn (0     , 0     ) snake fruits
     ++ "\r\n"
-drawScreen 0 (S j) snake fruits =
-    whatIn (0    , (S j)) snake fruits
+drawScreen 0 (FS j) snake fruits =
+    whatIn (0     , (FS j)) snake fruits
     ++ "\r\n"
-    ++ drawScreen 10 j snake fruits
-drawScreen (S i) j snake fruits =
-    whatIn ((S i), j    ) snake fruits
-    ++ drawScreen i j snake fruits
+    ++ drawScreen last (weaken j) snake fruits
+drawScreen (FS i) j snake fruits =
+    whatIn ((FS i), j     ) snake fruits
+    ++ drawScreen (weaken i) j snake fruits
 
 
 renderGame : GameState -> String
-renderGame (Active _ snake fruits) = drawScreen 10 10 snake fruits
+renderGame (Active _ snake fruits) = drawScreen last last snake fruits
 renderGame (Over)                  = gameOverText
 
 
 newCoordinates : Direction -> Coordinates -> Coordinates
-newCoordinates Up    (x    , y    ) = (x               , (mod (y + 1) 11))
-newCoordinates Right (0    , y    ) = (10              , y               )
-newCoordinates Right ((S x), y    ) = ((mod x 11)      , y               )
-newCoordinates Down  (x    , 0    ) = (x               , 10              )
-newCoordinates Down  (x    , (S y)) = (x               , (mod y 11)      )
-newCoordinates Left  (x    , y    ) = ((mod (x + 1) 11), y               )
+newCoordinates Up    (x     , y     ) = (x       , finS y  )
+newCoordinates Right (0     , y     ) = (last    , y       )
+newCoordinates Right ((FS x), y     ) = (weaken x, y       )
+newCoordinates Down  (x     , 0     ) = (x       , last    )
+newCoordinates Down  (x     , (FS y)) = (x       , weaken y)
+newCoordinates Left  (x     , y     ) = (finS x  , y       )
 
 
 eatFruit : (fruits: List Coordinates) -> Snake -> (Nat, (List Coordinates))
