@@ -50,7 +50,7 @@ data Direction =
 
 
 data GameState =
-    Active Direction Snake (List Coordinates)
+    Active Direction Bool Snake (List Coordinates)
     | Over
 
 
@@ -153,30 +153,33 @@ inputThread quitRef keyboardRef = do
             inputThread quitRef keyboardRef
 
 
-whatIn : Coordinates -> (snake: Snake) -> (fruits: List Coordinates) -> String
-whatIn coords (len, spine) fruits =
-    case elem coords spine of
-        True  => "██"
-        False => case elem coords fruits of
+whatIn : Coordinates -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+whatIn (x, y) pattern (len, spine) fruits =
+    case elem (x, y) spine of
+        False => case elem (x, y) fruits of
             True => "()"
             False => "░░"
+        True  =>
+            if pattern /= ((mod ((finToNat x) + (finToNat y)) 2) == 0)
+               then "██"
+               else "▓▓"
 
 
-drawScreen : (i: Coordinate) -> (j: Coordinate) -> (snake: Snake) -> (fruits: List Coordinates) -> String
-drawScreen 0 0 snake fruits =
-    whatIn (0     , 0     ) snake fruits
+drawScreen : (i: Coordinate) -> (j: Coordinate) -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+drawScreen 0 0 pattern snake fruits =
+    whatIn (0     , 0     ) pattern snake fruits
     ++ "\r\n"
-drawScreen 0 (FS j) snake fruits =
-    whatIn (0     , (FS j)) snake fruits
+drawScreen 0 (FS j) pattern snake fruits =
+    whatIn (0     , (FS j)) pattern   snake fruits
     ++ "\r\n"
-    ++ drawScreen last (weaken j) snake fruits
-drawScreen (FS i) j snake fruits =
-    whatIn ((FS i), j     ) snake fruits
-    ++ drawScreen (weaken i) j snake fruits
+    ++ drawScreen last (weaken j) pattern snake fruits
+drawScreen (FS i) j pattern snake fruits =
+    whatIn ((FS i), j     ) pattern snake fruits
+    ++ drawScreen (weaken i) j pattern snake fruits
 
 
 renderGame : GameState -> String
-renderGame (Active _ snake fruits) = drawScreen last last snake fruits
+renderGame (Active _  pattern snake fruits) = drawScreen last last pattern snake fruits
 renderGame (Over)                  = gameOverText
 
 
@@ -204,15 +207,15 @@ where
 
 
 updateState : GameState -> GameState
-updateState Over                                            = Over
-updateState (Active direction (len, coords ::: xs) fruits) =
+updateState Over                                                   = Over
+updateState (Active direction pattern (len, coords ::: xs) fruits) =
     let newCoords  = newCoordinates direction coords in
     let (newLen, newFruits) = eatFruit fruits (len, newCoords ::: coords :: xs) in
     case trim (newCoords ::: coords :: xs) newLen of
         (head ::: trimmedTail) =>
             if collides head trimmedTail
                 then Over
-                else Active direction (newLen, head ::: trimmedTail) newFruits
+                else Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
 
 
 mainLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
@@ -223,21 +226,21 @@ mainLoop (More fuel) keyBuff gameState = do
     let manipulatedState =
         case gameState of
             Over => Over
-            Active direction snake fruits => case key of
+            Active direction pattern snake fruits => case key of
                 Just 'q' => Over
                 Just 'w' => case direction of
-                        Down  => Active direction snake fruits
-                        _     => Active Up        snake fruits
+                        Down  => Active direction pattern snake fruits
+                        _     => Active Up        pattern snake fruits
                 Just 'a' => case direction of
-                        Right => Active direction snake fruits
-                        _     => Active Left      snake fruits
+                        Right => Active direction pattern snake fruits
+                        _     => Active Left      pattern snake fruits
                 Just 's' => case direction of
-                        Up    => Active direction snake fruits
-                        _     => Active Down      snake fruits
+                        Up    => Active direction pattern snake fruits
+                        _     => Active Down      pattern snake fruits
                 Just 'd' => case direction of
-                        Left  => Active direction snake fruits
-                        _     => Active Right     snake fruits
-                _             => Active direction snake fruits
+                        Left  => Active direction pattern snake fruits
+                        _     => Active Right     pattern snake fruits
+                _             => Active direction pattern snake fruits
 
     let updatedState = updateState manipulatedState
 
@@ -250,8 +253,6 @@ mainLoop (More fuel) keyBuff gameState = do
         activeState => do
             usleep 400000
             mainLoop fuel keyBuff activeState 
-
-
 
 
 newFruits : List Coordinates
@@ -273,7 +274,7 @@ main = do
 
     case buff of
         Nothing      => pure()
-        Just keyBuff => mainLoop forever keyBuff $ Active Up newSnake newFruits
+        Just keyBuff => mainLoop forever keyBuff $ Active Up False newSnake newFruits
 
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
