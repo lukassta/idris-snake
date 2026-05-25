@@ -33,9 +33,13 @@ Coordinate = Fin screenSize
 Coordinates : Type
 Coordinates = (Coordinate, Coordinate)
 
-
 Snake : Type
 Snake = (Nat, (List1 Coordinates))
+
+newSnake : Snake
+newSnake =
+    let halfSize = 10 in
+    (3, ((halfSize , halfSize) ::: []))
 
 
 data Direction =
@@ -47,7 +51,7 @@ data Direction =
 
 data GameState =
     Active Direction Snake (List Coordinates)
-    | Over 
+    | Over
 
 
 CLEAR_SCREEN            = "\x1B[2J"
@@ -248,8 +252,6 @@ mainLoop (More fuel) keyBuff gameState = do
             mainLoop fuel keyBuff activeState 
 
 
-newSnake : Snake
-newSnake = (3, ((5, 5) ::: []))
 
 
 newFruits : List Coordinates
