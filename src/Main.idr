@@ -8,7 +8,20 @@ import Data.Nat
 import Data.List
 import Data.List1
 
+import System
+import System.Clock
+import Data.Buffer
+
 %default covering
+
+-- FIXME: Could not make non blocking getChar with purely Idris
+%foreign "C:read,libc.so.6"    -- Linux
+prim_read : Int -> Buffer -> Int -> PrimIO Int
+
+
+%foreign "C:fcntl,libc.so.6"   -- Linux
+prim_fcntl : Int -> Int -> Int -> PrimIO Int
+
 
 Coordinates : Type
 Coordinates = (Nat, Nat)
@@ -19,15 +32,15 @@ Snake = (Nat, (List1 Coordinates))
 
 
 data Direction =
-    Up    |
-    Right |
-    Down  |
-    Left
+    Up    
+    | Right
+    | Down
+    | Left
 
 
 data GameState =
-    Over |
     Active Direction Snake (List Coordinates)
+    | Over 
 
 
 CLEAR_SCREEN            = "\x1B[2J"
@@ -66,6 +79,16 @@ gameOverText = """
 
 """
 
+o_NONBLOCK : Int
+o_NONBLOCK = 2048  -- Linux
+
+
+setNonBlocking : IO ()
+setNonBlocking = do
+    flags <- primIO $ prim_fcntl 0 3 0
+    _     <- primIO $ prim_fcntl 0 4 (flags + o_NONBLOCK)
+    pure ()
+
 
 setRaw : IO ()
 setRaw = system "stty -echo raw" >>= \_ => pure ()
@@ -75,8 +98,18 @@ restore : IO ()
 restore = system "stty echo cooked" >>= \_ => pure ()
 
 
-getKey : IO Char
-getKey = getChar
+drainRead : Buffer -> Maybe Char -> IO (Maybe Char)
+drainRead buff lastDrained = do
+    n <- primIO $ prim_read 0 buff 1
+    if n <= 0
+        then pure lastDrained
+        else do
+            byte <- getBits8 buff 0
+            drainRead buff (Just (chr (cast byte)))
+
+
+latestKey : Buffer -> IO (Maybe Char)
+latestKey keyBuff = drainRead keyBuff Nothing
 
 
 trim : List1 a -> Nat -> List1 a
@@ -118,20 +151,22 @@ whatIn coords (len, spine) fruits =
             False => "░░"
 
 
-drawScreen : (i: Nat) -> (j: Nat) -> (snake: Snake) -> (fruits: List Coordinates) -> IO ()
-drawScreen 0 0 snake fruits = do
-    putStr $ whatIn (0    , 0    ) snake fruits ++ "\n\r"
-drawScreen 0 (S j) snake fruits = do
-    putStr $ whatIn (0    , (S j)) snake fruits ++ "\n\r"
-    drawScreen 10 j snake fruits
-drawScreen (S i) j snake fruits = do
-    putStr $ whatIn ((S i), j    ) snake fruits
-    drawScreen i j snake fruits
+drawScreen : (i: Nat) -> (j: Nat) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+drawScreen 0 0 snake fruits =
+    whatIn (0    , 0    ) snake fruits
+    ++ "\r\n"
+drawScreen 0 (S j) snake fruits =
+    whatIn (0    , (S j)) snake fruits
+    ++ "\r\n"
+    ++ drawScreen 10 j snake fruits
+drawScreen (S i) j snake fruits =
+    whatIn ((S i), j    ) snake fruits
+    ++ drawScreen i j snake fruits
 
 
-renderGame : GameState -> IO ()
+renderGame : GameState -> String
 renderGame (Active _ snake fruits) = drawScreen 10 10 snake fruits
-renderGame (Over)                  = pure ()
+renderGame (Over)                  = ""
 
 
 newCoordinates : Direction -> Coordinates -> Coordinates
@@ -169,43 +204,36 @@ updateState (Active direction (len, coords ::: xs) fruits) =
                 else Active direction (newLen, head ::: trimmedTail) newFruits
 
 
-mainLoop : Fuel -> IORef (Maybe Char) -> (gameState: GameState) -> IO ()
-mainLoop Dry _ _ = pure ()
-mainLoop (More fuel) ref gameState = do
+mainLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
+mainLoop Dry  _ _ = pure ()
+mainLoop (More fuel) keyBuff gameState = do
     let newGameState = updateState gameState
 
-    putStr CLEAR_SCREEN
-    putStr MOVE_CURSOR_TO_ZERO
-    renderGame gameState
+    putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ renderGame gameState
 
     usleep 400000
 
-    key <- readIORef ref
-
-    writeIORef ref Nothing
-    fflush stdout
+    key <- latestKey keyBuff
 
     case newGameState of
         Over => do
-            putStr CLEAR_SCREEN
-            putStr MOVE_CURSOR_TO_ZERO
-            putStr gameOverText
+            putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ gameOverText
             usleep 3000000
         Active direction snake fruits => case key of
             Just 'q' => putStrLn CLEAR_SCREEN
             Just 'w' => case direction of
-                    Down  => mainLoop fuel ref $ Active direction snake fruits
-                    _     => mainLoop fuel ref $ Active Up        snake fruits
+                    Down  => mainLoop fuel keyBuff $ Active direction snake fruits
+                    _     => mainLoop fuel keyBuff $ Active Up        snake fruits
             Just 'a' => case direction of
-                    Right => mainLoop fuel ref $ Active direction snake fruits
-                    _     => mainLoop fuel ref $ Active Left      snake fruits
+                    Right => mainLoop fuel keyBuff $ Active direction snake fruits
+                    _     => mainLoop fuel keyBuff $ Active Left      snake fruits
             Just 's' => case direction of
-                    Up    => mainLoop fuel ref $ Active direction snake fruits
-                    _     => mainLoop fuel ref $ Active Down      snake fruits
+                    Up    => mainLoop fuel keyBuff $ Active direction snake fruits
+                    _     => mainLoop fuel keyBuff $ Active Down      snake fruits
             Just 'd' => case direction of
-                    Left  => mainLoop fuel ref $ Active direction snake fruits
-                    _     => mainLoop fuel ref $ Active Right     snake fruits
-            _             => mainLoop fuel ref $ Active direction snake fruits
+                    Left  => mainLoop fuel keyBuff $ Active direction snake fruits
+                    _     => mainLoop fuel keyBuff $ Active Right     snake fruits
+            _             => mainLoop fuel keyBuff $ Active direction snake fruits
 
 
 newSnake : Snake
@@ -219,23 +247,22 @@ newFruits = [(1, 1), (6, 8), (5, 8)]
 main : IO ()
 main = do
     setRaw
+    setNonBlocking
+
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
     putStr snakeText
 
-    quitRef <- newIORef False
-    keyboardRef <- newIORef Nothing
-
-    _ <- fork $ inputThread quitRef keyboardRef
+    buff <- newBuffer 1
 
     usleep 3000000
 
-    mainLoop forever keyboardRef $ Active Up newSnake newFruits
-    writeIORef quitRef True
+    case buff of
+        Nothing      => pure()
+        Just keyBuff => mainLoop forever keyBuff $ Active Up newSnake newFruits
 
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
-    putStr "\rYou exited the game\rn"
+    putStr "\rYou exited the game\r\n"
 
     restore
-    putStrLn ""
