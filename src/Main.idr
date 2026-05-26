@@ -13,7 +13,9 @@ import System
 import System.Clock
 import Data.Buffer
 
+
 import Helper
+import Variables
 
 %default covering
 
@@ -26,25 +28,22 @@ prim_read : Int -> Buffer -> Int -> PrimIO Int
 prim_fcntl : Int -> Int -> Int -> PrimIO Int
 
 
-fps : Int
-fps = 6
-
-screenSize : Nat
-screenSize = 20
-
 Coordinate : Type
 Coordinate = Fin screenSize
+
 
 Coordinates : Type
 Coordinates = (Coordinate, Coordinate)
 
+
 Snake : Type
 Snake = (Nat, (List1 Coordinates))
+
 
 newSnake : Snake
 newSnake =
     let (halfSize ** haldLRscrnSize) = divWProof screenSize 2 in
-    (3, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
+    (snakeLength, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
 
 
 data Direction =
