@@ -18,10 +18,10 @@ readme = "README.md"
 modules = Main
 
 -- main file (i.e. file to load at REPL)
--- main =
+main = Main
 
 -- name of executable
--- executable =
+executable = "snake.o"
 -- opts =
 sourcedir = "./src"
 -- builddir =
