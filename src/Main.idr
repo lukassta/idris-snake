@@ -13,9 +13,9 @@ import System
 import System.Clock
 import Data.Buffer
 
-
 import Helper
 import Variables
+import Types
 
 %default covering
 
@@ -26,37 +26,6 @@ prim_read : Int -> Buffer -> Int -> PrimIO Int
 
 %foreign "C:fcntl,libc.so.6"   -- Linux
 prim_fcntl : Int -> Int -> Int -> PrimIO Int
-
-
-Coordinate : Type
-Coordinate = Fin screenSize
-
-
-Coordinates : Type
-Coordinates = (Coordinate, Coordinate)
-
-
-Snake : Type
-Snake = (Nat, (List1 Coordinates))
-
-
-newSnake : Snake
-newSnake =
-    let (halfSize ** haldLRscrnSize) = divWProof screenSize 2 in
-    (snakeLength, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
-
-
-data Direction =
-    Up
-    | Right
-    | Down
-    | Left
-
-
-data GameState =
-    Active Direction Bool Snake (List Coordinates)
-    | Over
-    | Quit
 
 
 CLEAR_SCREEN            = "\x1B[2J"
@@ -264,6 +233,12 @@ mainLoop (More fuel) keyBuff gameState = do
 
 newFruits : List Coordinates
 newFruits = [(1, 1), (6, 8), (5, 8)]
+
+
+newSnake : Snake
+newSnake =
+    let (halfSize ** haldLRscrnSize) = divWProof screenSize 2 in
+    (snakeLength, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
 
 
 main : IO ()
