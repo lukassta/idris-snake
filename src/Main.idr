@@ -36,6 +36,6 @@ main = do
 
     case buff of
         Nothing      => pure()
-        Just keyBuff => mainLoop forever keyBuff $ Active Up False newSnake newFruits
+        Just keyBuff => gameLoop forever keyBuff $ Active Up False newSnake newFruits
 
     cleanUp

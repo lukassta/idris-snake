@@ -9,7 +9,6 @@ import IO
 import Types
 import Variables
 
-
 trim : List1 a -> Nat -> List1 a
 trim (x ::: []) _     = (x ::: [])
 trim (x ::: xs) 0     = (x ::: [])
@@ -65,8 +64,8 @@ updateState (Active direction pattern (len, coords ::: xs) fruits) =
                 else Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
 
 
-whatIn : Coordinates -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
-whatIn (x, y) pattern (len, spine) fruits =
+renderCoordinate : Coordinates -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+renderCoordinate (x, y) pattern (len, spine) fruits =
     case elem (x, y) spine of
         False => case elem (x, y) fruits of
             True => "()"
@@ -77,28 +76,28 @@ whatIn (x, y) pattern (len, spine) fruits =
                else "▓▓"
 
 
-drawScreen : (i: Coordinate) -> (j: Coordinate) -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
-drawScreen 0 0 pattern snake fruits =
-    whatIn (0     , 0     ) pattern snake fruits
+renderActive : (i: Coordinate) -> (j: Coordinate) -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
+renderActive 0 0 pattern snake fruits =
+    renderCoordinate (0     , 0     ) pattern snake fruits
     ++ "\r\n"
-drawScreen 0 (FS j) pattern snake fruits =
-    whatIn (0     , (FS j)) pattern   snake fruits
+renderActive 0 (FS j) pattern snake fruits =
+    renderCoordinate (0     , (FS j)) pattern   snake fruits
     ++ "\r\n"
-    ++ drawScreen last (weaken j) pattern snake fruits
-drawScreen (FS i) j pattern snake fruits =
-    whatIn ((FS i), j     ) pattern snake fruits
-    ++ drawScreen (weaken i) j pattern snake fruits
+    ++ renderActive last (weaken j) pattern snake fruits
+renderActive (FS i) j pattern snake fruits =
+    renderCoordinate ((FS i), j     ) pattern snake fruits
+    ++ renderActive (weaken i) j pattern snake fruits
 
 
 renderGame : GameState -> String
-renderGame (Active _  pattern snake fruits) = drawScreen last last pattern snake fruits
+renderGame (Active _  pattern snake fruits) = renderActive last last pattern snake fruits
 renderGame Over                             = gameOverText
 renderGame Quit                             = ""
 
 
-mainLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
-mainLoop Dry  _ _ = pure ()
-mainLoop (More fuel) keyBuff gameState = do
+gameLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
+gameLoop Dry  _ _ = pure ()
+gameLoop (More fuel) keyBuff gameState = do
     key <- latestKey keyBuff
 
     let manipulatedState =
@@ -130,4 +129,4 @@ mainLoop (More fuel) keyBuff gameState = do
         Quit        => pure ()
         activeState => do
             usleep $ div 1000000 fps
-            mainLoop fuel keyBuff activeState
+            gameLoop fuel keyBuff activeState
