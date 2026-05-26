@@ -46,23 +46,6 @@ gameOverText = """
 
 """
 
-o_NONBLOCK : Int
-o_NONBLOCK = 2048  -- Linux
-
-
-setNonBlocking : IO ()
-setNonBlocking = do
-    flags <- primIO $ prim_fcntl 0 3 0
-    _     <- primIO $ prim_fcntl 0 4 (flags + o_NONBLOCK)
-    pure ()
-
-
-setRaw : IO ()
-setRaw = system "stty -echo raw" >>= \_ => pure ()
-
-
-restore : IO ()
-restore = system "stty echo cooked" >>= \_ => pure ()
 
 
 drainRead : Buffer -> Maybe Char -> IO (Maybe Char)
@@ -79,10 +62,16 @@ latestKey : Buffer -> IO (Maybe Char)
 latestKey keyBuff = drainRead keyBuff Nothing
 
 
+o_NONBLOCK : Int
+o_NONBLOCK = 2048  -- Linux
+
+
 setUp : IO()
 setUp = do
-    setRaw
-    setNonBlocking
+    ignore $ system "stty -echo raw"
+
+    flags <- primIO $ prim_fcntl 0 3 0
+    _     <- primIO $ prim_fcntl 0 4 (flags + o_NONBLOCK)
 
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
@@ -91,7 +80,7 @@ setUp = do
 
 cleanUp : IO()
 cleanUp = do
+    ignore $ system "stty echo cooked"
+
     putStr MOVE_CURSOR_TO_ZERO
     putStr CLEAR_SCREEN
-
-    restore
