@@ -3,3 +3,4 @@ build
 *.ibc
 *.o
 *.a
+Test.idr
