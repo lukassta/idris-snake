@@ -5,6 +5,7 @@ import Data.List
 import Data.List1
 import System
 
+import Helper
 import IO
 import Types
 import Variables
@@ -130,3 +131,17 @@ gameLoop (More fuel) keyBuff gameState = do
         activeState => do
             usleep $ div 1000000 fps
             gameLoop fuel keyBuff activeState
+
+
+newFruits : List Coordinates
+newFruits = [(1, 1), (6, 8), (5, 8)]
+
+
+newSnake : Snake
+newSnake =
+    let (halfSize ** haldLRscrnSize) = divWProof screenSize 2 in
+    (snakeLength, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
+
+
+newGameState : GameState
+newGameState = Active Up False newSnake newFruits

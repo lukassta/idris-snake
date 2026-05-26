@@ -1,8 +1,5 @@
-import Data.List
-import Decidable.Equality
-import Control.WellFounded
-
 import Data.Nat
+import Decidable.Equality
 
 %default covering
 
