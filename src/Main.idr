@@ -13,6 +13,8 @@ import System
 import System.Clock
 import Data.Buffer
 
+import Helper
+
 %default covering
 
 -- FIXME: Could not make non blocking getChar with purely Idris
@@ -41,8 +43,8 @@ Snake = (Nat, (List1 Coordinates))
 
 newSnake : Snake
 newSnake =
-    let halfSize = 10 in
-    (3, ((halfSize , halfSize) ::: []))
+    let (halfSize ** haldLRscrnSize) = divWProof screenSize 2 in
+    (3, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
 
 
 data Direction =
