@@ -1,3 +1,5 @@
+module Game
+
 import Data.Buffer
 import Data.Fin
 import Data.Fuel
@@ -52,17 +54,26 @@ where
                 (bool, xs) => (bool, fruitCoords :: xs)
 
 
+getTileCount : Coordinates -> Nat
+getTileCount (x, y) = mult ((finToNat x) + 1) ((finToNat y) + 1)
+
+
 updateState : GameState -> GameState
 updateState Over                                                   = Over
 updateState Quit                                                   = Quit
+updateState Victory                                                = Victory
 updateState (Active direction pattern (len, coords ::: xs) fruits) =
     let newCoords  = newCoordinates direction coords in
     let (newLen, newFruits) = eatFruit fruits (len, newCoords ::: coords :: xs) in
-    case trim (newCoords ::: coords :: xs) newLen of
-        (head ::: trimmedTail) =>
-            if collides head trimmedTail
-                then Over
-                else Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
+    let tileCount = getTileCount (last, last) in
+    if tileCount  <= newLen
+        then Victory
+        else
+            case trim (newCoords ::: coords :: xs) newLen of
+                (head ::: trimmedTail) =>
+                    if collides head trimmedTail
+                        then Over
+                        else Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
 
 
 renderCoordinate : Coordinates -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
@@ -94,8 +105,10 @@ renderGame : GameState -> String
 renderGame (Active _  pattern snake fruits) = renderActive last last pattern snake fruits
 renderGame Over                             = gameOverText
 renderGame Quit                             = ""
+renderGame Victory                          = vicotryText
 
 
+public export
 gameLoop : Fuel -> (keyBuff: Buffer) -> (gameState: GameState) -> IO ()
 gameLoop Dry  _ _ = pure ()
 gameLoop (More fuel) keyBuff gameState = do
@@ -103,8 +116,9 @@ gameLoop (More fuel) keyBuff gameState = do
 
     let manipulatedState =
         case gameState of
-            Over => Over
-            Quit => Quit
+            Over                                  => Over
+            Quit                                  => Quit
+            Victory                               => Victory
             Active direction pattern snake fruits => case key of
                 Just 'q' => Quit
                 Just 'w' => case direction of
@@ -128,13 +142,15 @@ gameLoop (More fuel) keyBuff gameState = do
     case updatedState of
         Over        => usleep 3000000
         Quit        => pure ()
+        Victory     => usleep 3000000
         activeState => do
             usleep $ div 1000000 fps
             gameLoop fuel keyBuff activeState
 
 
 newFruits : List Coordinates
-newFruits = [(1, 1), (6, 8), (5, 8)]
+--newFruits = [(1, 1), (6, 8), (5, 8)]
+newFruits = [(2, 2)]
 
 
 newSnake : Snake
@@ -143,5 +159,6 @@ newSnake =
     (snakeLength, ((natToFinLT halfSize, natToFinLT halfSize) ::: []))
 
 
+public export
 newGameState : GameState
 newGameState = Active Up False newSnake newFruits

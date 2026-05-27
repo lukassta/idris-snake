@@ -1,10 +1,15 @@
+module Variables
+
+public export
 fps : Int
 fps = 6
 
 
+public export
 snakeLength : Nat
 snakeLength = 3
 
 
+public export
 screenSize : Nat
-screenSize = 20
+screenSize = 10

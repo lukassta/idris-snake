@@ -1,3 +1,5 @@
+module IO
+
 import Data.Buffer
 import System
 
@@ -19,6 +21,7 @@ SAVE_CURSOR_POSITION    = "\x1B[s"
 UPLINE                  = "\x1B[F"
 
 
+public export
 snakeText : String
 snakeText = """
 
@@ -33,6 +36,7 @@ snakeText = """
 """
 
 
+public export
 gameOverText : String
 gameOverText = """
 
@@ -43,6 +47,21 @@ gameOverText = """
    | | |_ | / /\\ \\ | |\\/| |  __|   | |  | |\\ \\/ / |  __| |  _  /   \r
    | |__| |/ ____ \\| |  | | |____  | |__| | \\  /  | |____| | \\ \\   \r
     \\_____/_/    \\_\\_|  |_|______|  \\____/   \\/   |______|_|  \\_\\  \r
+
+"""
+
+
+public export
+vicotryText : String
+vicotryText = """
+
+
+   __      _______ _____ _______ ____  _______     __  \r
+   \\ \\    / /_   _/ ____|__   __/ __ \\|  __ \\ \\   / /  \r
+    \\ \\  / /  | || |       | | | |  | | |__) \\ \\_/ /   \r
+     \\ \\/ /   | || |       | | | |  | |  _  / \\   /    \r
+      \\  /   _| || |____   | | | |__| | | \ \\  | |     \r
+       \\/   |_____\\_____|  |_|  \\____/|_|  \\_\\ |_|     \r
 
 """
 
@@ -58,6 +77,7 @@ drainRead buff lastDrained = do
             drainRead buff (Just (chr (cast byte)))
 
 
+public export
 latestKey : Buffer -> IO (Maybe Char)
 latestKey keyBuff = drainRead keyBuff Nothing
 
@@ -66,6 +86,7 @@ o_NONBLOCK : Int
 o_NONBLOCK = 2048  -- Linux
 
 
+public export
 setUp : IO()
 setUp = do
     ignore $ system "stty -echo raw"
@@ -78,6 +99,7 @@ setUp = do
     putStr snakeText
 
 
+public export
 cleanUp : IO()
 cleanUp = do
     ignore $ system "stty echo cooked"

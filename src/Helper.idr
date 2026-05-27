@@ -1,3 +1,5 @@
+module Helper
+
 import Data.Nat
 import Decidable.Equality
 
@@ -29,6 +31,7 @@ lteTrans LTEZero _ = LTEZero
 lteTrans (LTESucc x) (LTESucc y) = LTESucc $ lteTrans x y
 
 
+public export
 divWProof : (a, b : Nat) -> {auto aNZ: NonZero a} -> {auto bMTOne: LT 1 b} -> (c : Nat ** LT c a)
 divWProof (S a) (S b) =
     case decEq (S a) (S b) of
