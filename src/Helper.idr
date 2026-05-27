@@ -1,7 +1,13 @@
 module Helper
 
 import Data.Nat
+import Data.Fin
+import Data.List1
 import Decidable.Equality
+import System.Random
+
+import Types
+import Variables
 
 %default covering
 
@@ -51,3 +57,31 @@ divWProof (S a) (S b) =
                     case aNZ of
                         ItIsSucc => (0 ** (LTESucc LTEZero))
 
+
+public export
+randomElem : List a -> IO (Maybe a)
+randomElem [] = pure Nothing
+randomElem (head :: tail) = do
+    let list = (head :: tail)
+    randomId <- (rndFin  (length tail))
+    pure $ Just $ randomElem' (head :: tail) randomId
+where
+    randomElem' : (list : List a) -> Fin (length list) -> a
+    randomElem' (x :: xs)  FZ    = x
+    randomElem' (x :: xs) (FS y) = randomElem' xs y
+
+
+public export
+removeMatcingElements : Eq a => (list1, list2 : List a) -> List a
+removeMatcingElements []        _    = []
+removeMatcingElements (x :: xs) list2 =
+    case elem x list2 of
+        True  => removeMatcingElements xs list2
+        False => x :: removeMatcingElements xs list2
+
+
+public export
+populate : Coordinates -> List Coordinates
+populate ( FZ   ,  FZ   ) = [( FZ   ,  FZ   )]
+populate ( FZ   , (FS y)) =  ( FZ   , (FS y)) :: populate (last    , weaken y)
+populate ((FS x), y     ) =  ((FS x), y     ) :: populate (weaken x, y       )

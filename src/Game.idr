@@ -6,6 +6,7 @@ import Data.Fuel
 import Data.List
 import Data.List1
 import System
+import System.Random
 
 import Helper
 import IO
@@ -39,11 +40,24 @@ newCoordinates Down  (x     , 0     ) = (x       , last    )
 newCoordinates Down  (x     , (FS y)) = (x       , weaken y)
 newCoordinates Left  (x     , y     ) = (finS x  , y       )
 
+growFruits : (fruits: List Coordinates) -> (spine: List Coordinates) -> IO (List Coordinates)
+growFruits fruits spine = do
+    let fullCoordinates = populate (last, last)
+    let withoutFruits   = removeMatcingElements fullCoordinates fruits
+    let withoutAll      = removeMatcingElements fullCoordinates spine
+    maybeNewFruit <- randomElem withoutAll
+    case maybeNewFruit of
+        Nothing       => pure $ fruits
+        Just newFruit => pure $ newFruit :: fruits
 
-eatFruit : (fruits: List Coordinates) -> Snake -> (Nat, (List Coordinates))
+
+
+eatFruit : (fruits: List Coordinates) -> Snake -> IO (Nat, (List Coordinates))
 eatFruit fruits (len, (head ::: tail)) = case eatFruit' fruits head of
-    (False, fruits) => (len    , fruits)
-    (True,  fruits) => (len + 1, fruits)
+    (False, fruits) => pure (len    , fruits)
+    (True,  fruits) => do
+        newFruit <- growFruits fruits (head :: tail)
+        pure (len + 1, newFruit)
 where
     eatFruit' : (fruits: List Coordinates) -> (headCoords: Coordinates) -> (Bool, List Coordinates)
     eatFruit' [] _ = (False, [])
@@ -58,22 +72,22 @@ getTileCount : Coordinates -> Nat
 getTileCount (x, y) = mult ((finToNat x) + 1) ((finToNat y) + 1)
 
 
-updateState : GameState -> GameState
-updateState Over                                                   = Over
-updateState Quit                                                   = Quit
-updateState Victory                                                = Victory
-updateState (Active direction pattern (len, coords ::: xs) fruits) =
-    let newCoords  = newCoordinates direction coords in
-    let (newLen, newFruits) = eatFruit fruits (len, newCoords ::: coords :: xs) in
-    let tileCount = getTileCount (last, last) in
+updateState : GameState -> IO GameState
+updateState Over                                                   = pure Over
+updateState Quit                                                   = pure Quit
+updateState Victory                                                = pure Victory
+updateState (Active direction pattern (len, coords ::: xs) fruits) = do
+    let tileCount = getTileCount (last, last)
+    let newCoords  = newCoordinates direction coords
+    (newLen, newFruits) <- eatFruit fruits (len, newCoords ::: coords :: xs)
     if tileCount  <= newLen
-        then Victory
+        then pure Victory
         else
             case trim (newCoords ::: coords :: xs) newLen of
                 (head ::: trimmedTail) =>
                     if collides head trimmedTail
-                        then Over
-                        else Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
+                        then pure Over
+                        else pure $ Active direction (not pattern) (newLen, head ::: trimmedTail) newFruits
 
 
 renderCoordinate : Coordinates -> (pattern: Bool) -> (snake: Snake) -> (fruits: List Coordinates) -> String
@@ -135,7 +149,7 @@ gameLoop (More fuel) keyBuff gameState = do
                         _     => Active Right     pattern snake fruits
                 _             => Active direction pattern snake fruits
 
-    let updatedState = updateState manipulatedState
+    updatedState <- updateState manipulatedState
 
     putStr $ CLEAR_SCREEN ++ MOVE_CURSOR_TO_ZERO ++ renderGame updatedState
 
@@ -148,9 +162,25 @@ gameLoop (More fuel) keyBuff gameState = do
             gameLoop fuel keyBuff activeState
 
 
-newFruits : List Coordinates
---newFruits = [(1, 1), (6, 8), (5, 8)]
-newFruits = [(2, 2)]
+generateNewFruits : Nat -> (fruits: List Coordinates) -> (snake: Snake) -> IO (List Coordinates)
+generateNewFruits 0     fruits (len, (head ::: spine)) = do
+    let fullCoordinates = populate (last, last)
+    let withoutFruits   = removeMatcingElements fullCoordinates fruits
+    let withoutAll      = removeMatcingElements fullCoordinates (head :: spine)
+    maybeNewFruit <- randomElem withoutAll
+    case maybeNewFruit  of
+         Just newFruit => pure $ newFruit :: fruits
+         Nothing       => pure $ fruits
+generateNewFruits (S k) fruits (len, (head ::: spine)) = do
+    let fullCoordinates = populate (last, last)
+    let withoutFruits   = removeMatcingElements fullCoordinates fruits
+    let withoutAll      = removeMatcingElements fullCoordinates (head :: spine)
+    maybeNewFruit <- randomElem withoutAll
+    case maybeNewFruit  of
+         Just newFruit => do
+            newFruits <- generateNewFruits  k (newFruit :: fruits) (len, (head ::: spine))
+            pure $ newFruits
+         Nothing       => pure $ fruits
 
 
 newSnake : Snake
@@ -160,5 +190,7 @@ newSnake =
 
 
 public export
-newGameState : GameState
-newGameState = Active Up False newSnake newFruits
+generateNewGameState : IO GameState
+generateNewGameState = do
+    newFruits <- (generateNewFruits fruitCount [] newSnake)
+    pure $ Active Up False newSnake newFruits

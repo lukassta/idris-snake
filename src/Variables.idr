@@ -13,3 +13,8 @@ snakeLength = 3
 public export
 screenSize : Nat
 screenSize = 10
+
+
+public export
+fruitCount : Nat
+fruitCount = 3

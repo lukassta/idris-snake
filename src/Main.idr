@@ -6,6 +6,7 @@ import System
 
 import Game
 import IO
+import Types
 
 %default covering
 
@@ -17,6 +18,8 @@ main = do
     buff <- newBuffer 1
 
     usleep 3000000
+
+    newGameState <- generateNewGameState
 
     case buff of
         Nothing      => pure()
