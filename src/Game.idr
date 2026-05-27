@@ -44,7 +44,7 @@ growFruits : (fruits: List Coordinates) -> (spine: List Coordinates) -> IO (List
 growFruits fruits spine = do
     let fullCoordinates = populate (last, last)
     let withoutFruits   = removeMatcingElements fullCoordinates fruits
-    let withoutAll      = removeMatcingElements fullCoordinates spine
+    let withoutAll      = removeMatcingElements withoutFruits   spine
     maybeNewFruit <- randomElem withoutAll
     case maybeNewFruit of
         Nothing       => pure $ fruits
